@@ -17,7 +17,7 @@ let opponent_mark;
 let curr_turn;
 let ai_level;
 
-const BACKEND_URL = "http://localhost:5050";
+const BACKEND_URL = "https://tic-tac-toe-dsa.onrender.com";
 
 const redX = "#F83157";
 const greenO = "green";
