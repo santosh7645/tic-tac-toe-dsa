@@ -956,10 +956,10 @@ async function turn(
     }
 
 
-    // Only player can click
-    if (mark !== player_mark) {
-        return;
-    }
+  // In AI mode, only Player 1 can click
+if (ai_level !== -1 && mark !== player_mark) {
+    return;
+}
 
 
     processingMove = true;
@@ -1335,11 +1335,11 @@ if (
 
     curr_turn = toss();
 
+start_msg(curr_turn);
 
-    start_msg(curr_turn);
+active_player();
 
-
-    active_player();
+add_event();
 }
 
 
