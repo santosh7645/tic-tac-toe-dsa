@@ -828,63 +828,16 @@ async function check_ai_turn() {
             }
 
 
-            // For Easy/Medium we need to update backend too
-            if (
-                ai_level === "E" ||
-                ai_level === "M"
-            ) {
-
-                try {
-
-                    const response = await fetch(
-                        `${BACKEND_URL}/api/game/move`,
-                        {
-                            method: "POST",
-
-                            headers: {
-                                "Content-Type":
-                                    "application/json"
-                            },
-
-                            body: JSON.stringify({
-                                position:
-                                    Number(aiMove),
-
-                                player:
-                                    opponent_mark
-                            })
-                        }
-                    );
-
-                    const data =
-                        await response.json();
-
-                    console.log(
-                        "Backend AI move:",
-                        data
-                    );
-
-                } catch (error) {
-
-                    console.error(
-                        "Backend AI move error:",
-                        error
-                    );
-                }
-            }
 
 
-            // For backend Impossible AI,
-            // origBoard was already updated
-            if (
-                ai_level === "E" ||
-                ai_level === "M"
-            ) {
 
-                origBoard[aiMove] =
-                    opponent_mark;
-            }
-
+           // Easy and Medium AI update the local board
+if (
+    ai_level === "E" ||
+    ai_level === "M"
+) {
+    origBoard[aiMove] = opponent_mark;
+}
 
             renderBoard();
 
@@ -1063,126 +1016,169 @@ async function turn(
     }
 
 
-    // ======================================
-    // AI MODE
-    // ======================================
+// ======================================
+// AI MODE
+// ======================================
 
-    try {
+// EASY + MEDIUM = LOCAL
+// IMPOSSIBLE = BACKEND
 
-        // Send player move to backend
-        const response = await fetch(
-            `${BACKEND_URL}/api/game/move`,
-            {
-                method: "POST",
+if (ai_level === "E" || ai_level === "M") {
 
-                headers: {
-                    "Content-Type":
-                        "application/json"
-                },
+    // Put player's move on the local board
+    origBoard[index] = mark;
 
-                body: JSON.stringify({
-                    position: index,
-                    player: mark
-                })
-            }
-        );
+    renderBoard();
 
+    // Check player win
+    const gameWon = checkWin(
+        origBoard,
+        mark
+    );
 
-        const data =
-            await response.json();
+    if (gameWon) {
 
-
-        console.log(
-            "Backend player move:",
-            data
-        );
-
-
-        if (!data.success) {
-
-            console.error(
-                "Move rejected:",
-                data.message
-            );
-
-            processingMove = false;
-
-            add_event();
-
-            return;
-        }
-
-
-        // Get board from backend
-        origBoard =
-            data.board.map(
-                (cell) =>
-                    cell === ""
-                        ? 0
-                        : cell
-            );
-
-
-        renderBoard();
-
-
-        // Check winner returned by backend
-        if (data.winner === mark) {
-
-            const gameWon =
-                checkWin(
-                    origBoard,
-                    mark
-                );
-
-            if (gameWon) {
-                gameOver(gameWon);
-            }
-
-            processingMove = false;
-
-            return;
-        }
-
-
-        // Check draw
-        if (data.winner === "draw") {
-
-            checkTie();
-
-            processingMove = false;
-
-            return;
-        }
-
-
-        // Change to AI
-        curr_turn =
-            opponent_mark;
-
-        active_player();
+        gameOver(gameWon);
 
         processingMove = false;
 
-        // AI's turn
-        await check_ai_turn();
+        return;
+    }
 
-    } catch (error) {
+    // Check draw
+    if (checkTie()) {
+
+        processingMove = false;
+
+        return;
+    }
+
+    // Change turn to AI
+    curr_turn = opponent_mark;
+
+    active_player();
+
+    processingMove = false;
+
+    // AI makes its local move
+    await check_ai_turn();
+
+    return;
+}
+
+
+// ======================================
+// IMPOSSIBLE = BACKEND
+// ======================================
+
+try {
+
+    const response = await fetch(
+        `${BACKEND_URL}/api/game/move`,
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
+
+            body: JSON.stringify({
+                position: index,
+                player: mark
+            })
+        }
+    );
+
+    const data =
+        await response.json();
+
+    console.log(
+        "Backend player move:",
+        data
+    );
+
+    if (!data.success) {
 
         console.error(
-            "Backend connection error:",
-            error
-        );
-
-        alert(
-            "Backend is not connected. Please run node server.js"
+            "Move rejected:",
+            data.message
         );
 
         processingMove = false;
 
         add_event();
+
+        return;
     }
+
+    // Get board from backend
+    origBoard =
+        data.board.map(
+            (cell) =>
+                cell === ""
+                    ? 0
+                    : cell
+        );
+
+    renderBoard();
+
+    // Check player winner
+    if (data.winner === mark) {
+
+        const gameWon =
+            checkWin(
+                origBoard,
+                mark
+            );
+
+        if (gameWon) {
+            gameOver(gameWon);
+        }
+
+        processingMove = false;
+
+        return;
+    }
+
+    // Check draw
+    if (data.winner === "draw") {
+
+        checkTie();
+
+        processingMove = false;
+
+        return;
+    }
+
+    // Change turn to AI
+    curr_turn = opponent_mark;
+
+    active_player();
+
+    processingMove = false;
+
+    // Impossible AI's turn
+    await check_ai_turn();
+
+} catch (error) {
+
+    console.error(
+        "Backend connection error:",
+        error
+    );
+
+    alert(
+        "Impossible AI backend is not connected."
+    );
+
+    processingMove = false;
+
+    add_event();
 }
+
+} // closes turn()
+
 
 
 // ==========================================
@@ -1326,11 +1322,15 @@ async function play(opponent) {
     get_data(opponent);
 
 
-    // Reset backend only for AI games
-    if (opponent === "ai") {
+   
+    // Reset backend only for Impossible AI
+if (
+    opponent === "ai" &&
+    ai_level === "I"
+) {
 
-        await resetBackend();
-    }
+    await resetBackend();
+}
 
 
     curr_turn = toss();
